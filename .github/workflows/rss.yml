@@ -1,6 +1,8 @@
 name: RSS Torrent Auto-Release
 
 on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时运行一次
   workflow_dispatch:
 
 jobs:
@@ -41,13 +43,15 @@ jobs:
           # 每个文件创建一个新的 release
           for file in ./downloaded_files/*; do
             filename=$(basename "$file")
+            tag_name=$(echo "$filename" | sed 's/[^a-zA-Z0-9._-]/_/g')_$(date +'%Y%m%d%H%M%S')
+
             # 创建新的 Release，标题为文件名
-            gh release create "$filename" \
+            gh release create "$tag_name" \
               --title "$filename" \
               --notes "Automated update $(date +'%Y-%m-%d %H:%M')" \
               "$file"
-            
-            echo "Uploaded $file as new release: $filename"
+
+            echo "Uploaded $file as new release: $tag_name"
           done
 
           # 清理下载的文件
