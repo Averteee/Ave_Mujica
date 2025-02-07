@@ -1,0 +1,53 @@
+name: RSS Torrent Auto-Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install feedparser requests
+
+    - name: Run RSS Processor
+      env:
+        RSS_URL: ${{ secrets.RSS_URL }}
+      run: |
+        python process_rss.py
+
+    - name: Upload to Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # 创建/更新Release
+        if ls *.torrent 1> /dev/null 2>&1; then
+          gh release create bt-downloads \
+            --title "BT Downloads" \
+            --notes "Automated update $(date +'%Y-%m-%d %H:%M')" \
+            *.torrent || \
+          gh release upload bt-downloads *.torrent --clobber
+          
+          echo "Uploaded torrent files:"
+          ls *.torrent
+          rm -f *.torrent
+        else
+          echo "No new torrents found"
+        fi
+
+    - name: Commit Changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add processed.txt
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update processed entries"
+        git push
