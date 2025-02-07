@@ -10,7 +10,7 @@ RSS_URL = os.environ.get('RSS_URL')
 PROCESSED_FILE = 'processed.txt'
 ARIA2C_PATH = "/usr/bin/aria2c"  # 确保 aria2c 在你的 PATH 中，或者填入绝对路径
 DOWNLOAD_DIR = "./downloaded_files"  # 下载文件保存目录
-TRACKER_URL = "https://cf.trackerslist.com/best.txt"  # tracker 列表的 URL
+TRACKER_URL = "https://cf.trackerslist.com/all.txt"  # tracker 列表的 URL
 
 def download_torrent(torrent_url):
     """下载 .torrent 文件"""
