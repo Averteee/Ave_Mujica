@@ -32,23 +32,26 @@ jobs:
       run: |
         python process_rss.py  # 运行 Python 脚本，处理 RSS 下载内容
 
-    # 上传到 Release
-    - name: Upload to Release
+    # 上传到新 Release
+    - name: Upload to new Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # 检查是否有下载的文件
         if ls ./downloaded_files/* 1> /dev/null 2>&1; then
-          # 创建或更新 Release
-          gh release create bt-downloads \
-            --title "BT Downloads" \
-            --notes "Automated update $(date +'%Y-%m-%d %H:%M')" \
-            ./downloaded_files/* || \
-          gh release upload bt-downloads ./downloaded_files/* --clobber
-          
-          echo "Uploaded files:"
-          ls ./downloaded_files
-          rm -rf ./downloaded_files  # 删除下载的文件
+          # 每个文件创建一个新的 release
+          for file in ./downloaded_files/*; do
+            filename=$(basename "$file")
+            # 创建新的 Release，标题为文件名
+            gh release create "$filename" \
+              --title "$filename" \
+              --notes "Automated update $(date +'%Y-%m-%d %H:%M')" \
+              "$file"
+            
+            echo "Uploaded $file as new release: $filename"
+          done
+
+          # 清理下载的文件
+          rm -rf ./downloaded_files
         else
           echo "No new torrents found"
         fi
