@@ -6,45 +6,54 @@ on:
 jobs:
   process:
     runs-on: ubuntu-latest
+    
     steps:
+    # 检出代码
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # 设置 Python 环境
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
+    # 安装必要的依赖
     - name: Install dependencies
       run: |
         pip install feedparser requests
+        sudo apt-get update
+        sudo apt-get install -y aria2  # 安装 aria2
 
+    # 运行 RSS 处理脚本（下载 .torrent 文件内容）
     - name: Run RSS Processor
       env:
         RSS_URL: ${{ secrets.RSS_URL }}
       run: |
-        python process_rss.py
-        ls -la
+        python process_rss.py  # 运行 Python 脚本，处理 RSS 下载内容
 
+    # 上传到 Release
     - name: Upload to Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # 创建/更新Release
-        if ls *.torrent 1> /dev/null 2>&1; then
+        # 检查是否有下载的文件
+        if ls ./downloaded_files/* 1> /dev/null 2>&1; then
+          # 创建或更新 Release
           gh release create bt-downloads \
             --title "BT Downloads" \
             --notes "Automated update $(date +'%Y-%m-%d %H:%M')" \
-            *.torrent || \
-          gh release upload bt-downloads *.torrent --clobber
+            ./downloaded_files/* || \
+          gh release upload bt-downloads ./downloaded_files/* --clobber
           
-          echo "Uploaded torrent files:"
-          ls *.torrent
-          rm -f *.torrent
+          echo "Uploaded files:"
+          ls ./downloaded_files
+          rm -rf ./downloaded_files  # 删除下载的文件
         else
           echo "No new torrents found"
         fi
 
+    # 提交处理过的记录
     - name: Commit Changes
       run: |
         git config --global user.name "GitHub Actions"

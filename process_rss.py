@@ -1,11 +1,42 @@
 import feedparser
 import os
 import requests
+import subprocess
+import tempfile
 from urllib.parse import urlparse
 
 # 从环境变量中获取RSS地址
 RSS_URL = os.environ.get('RSS_URL')
 PROCESSED_FILE = 'processed.txt'
+ARIA2C_PATH = "/usr/bin/aria2c"  # 确保 aria2c 在你的 PATH 中，或者填入绝对路径
+
+def download_torrent(torrent_url):
+    """下载 .torrent 文件"""
+    response = requests.get(torrent_url)
+    response.raise_for_status()
+
+    # 将 .torrent 文件保存到临时文件
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.torrent') as temp_file:
+        temp_file.write(response.content)
+        temp_file_path = temp_file.name
+        print(f"Downloaded torrent file: {temp_file_path}")
+    
+    return temp_file_path
+
+def download_files_using_aria2(torrent_file_path):
+    """使用 aria2 下载 .torrent 文件中的内容"""
+    # 创建一个临时目录来保存下载的文件
+    download_dir = tempfile.mkdtemp()
+    print(f"Downloading files to: {download_dir}")
+    
+    # 使用 aria2c 下载 .torrent 文件
+    try:
+        subprocess.run([ARIA2C_PATH, '--dir', download_dir, '--seed-time=0', torrent_file_path], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error while downloading with aria2: {e}")
+        return None
+    
+    return download_dir
 
 def main():
     # 读取已处理条目
@@ -31,23 +62,22 @@ def main():
             if torrent_url:
                 try:
                     # 下载 .torrent 文件
-                    response = requests.get(torrent_url)
-                    response.raise_for_status()
+                    torrent_file_path = download_torrent(torrent_url)
                     
-                    # 从URL提取文件名
-                    path = urlparse(torrent_url).path
-                    filename = os.path.basename(path) or f"{entry_id}.torrent"
+                    # 使用 aria2 下载文件
+                    download_dir = download_files_using_aria2(torrent_file_path)
                     
-                    # 保存文件
-                    with open(filename, 'wb') as f:
-                        f.write(response.content)
+                    if download_dir:
+                        # 文件下载成功后，将文件夹内的内容上传到 GitHub Release
+                        new_entries.append(entry_id)
+                        processed.add(entry_id)
+                        print(f"Downloaded files from torrent: {torrent_file_path}")
                     
-                    # 记录该条目
-                    new_entries.append(entry_id)
-                    processed.add(entry_id)
-                    print(f"Downloaded: {filename}")
+                    # 删除临时 .torrent 文件
+                    os.remove(torrent_file_path)
+                    
                 except Exception as e:
-                    print(f"Error downloading {torrent_url}: {str(e)}")
+                    print(f"Error processing {torrent_url}: {str(e)}")
 
     # 更新已处理条目的记录
     if new_entries:
