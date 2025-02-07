@@ -1,6 +1,8 @@
 name: RSS Torrent Auto-Release
 
 on:
+  schedule:
+    - cron: '0 */4 * * *'  # 每6小时运行一次
   workflow_dispatch:
 
 jobs:
