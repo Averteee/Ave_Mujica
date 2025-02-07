@@ -24,6 +24,7 @@ jobs:
         RSS_URL: ${{ secrets.RSS_URL }}
       run: |
         python process_rss.py
+        ls -la
 
     - name: Upload to Release
       env:
