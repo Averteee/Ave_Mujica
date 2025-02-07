@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 RSS_URL = os.environ.get('RSS_URL')
 PROCESSED_FILE = 'processed.txt'
 ARIA2C_PATH = "/usr/bin/aria2c"  # 确保 aria2c 在你的 PATH 中，或者填入绝对路径
+DOWNLOAD_DIR = "./downloaded_files"  # 下载文件保存目录
+TRACKER_URL = "https://cf.trackerslist.com/best.txt"  # tracker 列表的 URL
 
 def download_torrent(torrent_url):
     """下载 .torrent 文件"""
@@ -23,20 +25,33 @@ def download_torrent(torrent_url):
     
     return temp_file_path
 
-def download_files_using_aria2(torrent_file_path):
-    """使用 aria2 下载 .torrent 文件中的内容"""
-    # 创建一个临时目录来保存下载的文件
-    download_dir = tempfile.mkdtemp()
-    print(f"Downloading files to: {download_dir}")
-    
-    # 使用 aria2c 下载 .torrent 文件
+def get_tracker_list():
+    """下载并返回最新的 tracker 列表"""
     try:
-        subprocess.run([ARIA2C_PATH, '--dir', download_dir, '--seed-time=0', torrent_file_path], check=True)
+        response = requests.get(TRACKER_URL)
+        response.raise_for_status()
+        tracker_list = response.text.strip().split("\n")
+        return tracker_list
+    except requests.RequestException as e:
+        print(f"Error fetching tracker list: {e}")
+        return []
+
+def download_files_using_aria2(torrent_file_path, trackers):
+    """使用 aria2 下载 .torrent 文件中的内容"""
+    # 创建下载目录
+    if not os.path.exists(DOWNLOAD_DIR):
+        os.makedirs(DOWNLOAD_DIR)
+    
+    # 构建 aria2c 的命令
+    tracker_args = [f"--bt-tracker={tracker}" for tracker in trackers]
+    
+    try:
+        subprocess.run([ARIA2C_PATH, '--dir', DOWNLOAD_DIR, '--seed-time=0', *tracker_args, torrent_file_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error while downloading with aria2: {e}")
         return None
     
-    return download_dir
+    return DOWNLOAD_DIR
 
 def main():
     # 读取已处理条目
@@ -44,6 +59,13 @@ def main():
     if os.path.exists(PROCESSED_FILE):
         with open(PROCESSED_FILE, 'r') as f:
             processed = set(line.strip() for line in f)
+
+    # 获取 tracker 列表
+    trackers = get_tracker_list()
+
+    if not trackers:
+        print("No trackers available. Exiting.")
+        return
 
     # 解析RSS
     feed = feedparser.parse(RSS_URL)
@@ -65,7 +87,7 @@ def main():
                     torrent_file_path = download_torrent(torrent_url)
                     
                     # 使用 aria2 下载文件
-                    download_dir = download_files_using_aria2(torrent_file_path)
+                    download_dir = download_files_using_aria2(torrent_file_path, trackers)
                     
                     if download_dir:
                         # 文件下载成功后，将文件夹内的内容上传到 GitHub Release
